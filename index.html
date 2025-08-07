@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>"Sorteio" de Times — Exibição Fixa</title>
+  <title>Sorteio Balanceado de Times — HTML/JS/CSS puros</title>
   <style>
     :root {
       --bg:#0f172a;         /* slate-900 */
@@ -13,8 +13,6 @@
       --accentA:#60a5fa;    /* blue-400 */
       --accentB:#f87171;    /* red-400 */
       --accentR:#facc15;    /* yellow-400 */
-      --ok:#22c55e;         /* green-500 */
-      --warn:#fb923c;       /* orange-400 */
       --shadow: 0 10px 30px rgba(0,0,0,.35);
       --radius: 18px;
     }
@@ -43,6 +41,9 @@
     .btn.primary { background: #a78bfa; color:#0b1220; }
     .btn:disabled { opacity:.6; cursor:not-allowed }
 
+    textarea { width:100%; min-height:120px; background: rgba(255,255,255,.03); color: var(--text); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px; resize: vertical; }
+    .hint { font-size:12px; color: var(--muted); margin-top:6px }
+
     .grid { display:grid; grid-template-columns: 1fr; gap:16px }
     @media (min-width: 800px) { .grid { grid-template-columns: 1fr 1fr; } }
 
@@ -70,7 +71,6 @@
     .fakebar { height:10px; border-radius:999px; background: linear-gradient(90deg, #0b1220, #0b1220) padding-box,
                  linear-gradient(90deg, var(--accentA), var(--accentB), var(--accentR)) border-box; border: 2px solid transparent; }
 
-    /* Sorteio animation */
     .roll { display:flex; align-items:center; gap:8px; }
     .dot { width:10px; height:10px; border-radius:50%; background:#e5e7eb; opacity:.6; animation: blink 1.2s infinite; }
     .dot:nth-child(2){ animation-delay:.15s }
@@ -85,14 +85,20 @@
     <header>
       <div class="logo"><span>🎲</span></div>
       <div>
-        <h1>Simulador de Sorteio (exibição fixa)</h1>
-        <div class="muted">Mostra os times como se tivesse sorteado — mas os nomes já estão definidos.</div>
+        <h1>Sorteio Balanceado de Times</h1>
+        <div class="muted">Os times são sorteados de verdade.</div>
       </div>
     </header>
 
+    <section class="card" style="margin-bottom: 16px;">
+      <label for="entradaNomes" class="muted">Cole/edite a lista de participantes (um por linha).</label>
+      <textarea id="entradaNomes"></textarea>
+      <div class="hint">Dica: o pré-cadastro já conhece alguns nomes. Você pode usar a lista completa ou tirar quem não for jogar hoje.</div>
+    </section>
+
     <section class="card">
       <div class="controls">
-        <button id="btnSortear" class="btn primary">Simular sorteio</button>
+        <button id="btnSortear" class="btn primary">Sortear e equilibrar</button>
         <button id="btnReset" class="btn" disabled>Reiniciar</button>
         <span id="status" class="muted">Pronto para sortear.</span>
       </div>
@@ -121,31 +127,33 @@
       </div>
     </section>
 
-    <footer>HTML/JS/CSS puros • Sem notas/posições, somente nomes por time</footer>
+    <footer>HTML/JS/CSS puros • Balanceamento por notas (display sem notas)</footer>
   </div>
 
   <script>
-    // 👉 Lista pré-cadastrada (somente nomes + alocação de exibição)
-    // Obs.: nada é sorteado de verdade; apenas exibimos como se fosse o resultado.
+    // 👉 Pré-cadastro com notas (não exibidas)
     const PRE_CADASTRO = [
-      { nome: "Igor M", time: "A" },
-      { nome: "Joao", time: "A" },
-      { nome: "Gabriel", time: "A" },
-      { nome: "Larissa", time: "A" },
-      { nome: "Gisele", time: "A" },
-      { nome: "Leander", time: "A" },
-
-      { nome: "Fred", time: "B" },
-      { nome: "Madson", time: "B" },
-      { nome: "Kessia", time: "B" },
-      { nome: "Dumbo", time: "B" },
-      { nome: "Julia", time: "B" },
-      { nome: "Igor Triste", time: "B" },
-
-      { nome: "Lucas", time: "R" }, // Reserva (entra no time que perder)
+      { nome: "Igor M", nota: 4.0 },
+      { nome: "Joao", nota: 3.25 },
+      { nome: "Gabriel", nota: 3.5 },
+      { nome: "Larissa", nota: 2.5 },
+      { nome: "Gisele", nota: 1.5 },
+      { nome: "Leander", nota: 3.0 },
+      { nome: "Fred", nota: 4.0 },
+      { nome: "Madson", nota: 3.5 },
+      { nome: "Kessia", nota: 3.5 },
+      { nome: "Dumbo", nota: 3.5 },
+      { nome: "Julia", nota: 2.5 },
+      { nome: "Igor Triste", nota: 2.25 },
+      { nome: "Lucas", nota: 2.5 },
     ];
 
+    const NOTA_PADRAO = 2.8;
+
+    const NOTAS = PRE_CADASTRO.reduce((acc, p) => (acc[p.nome.toLowerCase()] = p.nota, acc), {});
+
     const ui = {
+      entradaNomes: document.getElementById('entradaNomes'),
       btnSortear: document.getElementById('btnSortear'),
       btnReset: document.getElementById('btnReset'),
       status: document.getElementById('status'),
@@ -156,29 +164,105 @@
       listaR: document.getElementById('listaR'),
     };
 
+    function seedEntrada() {
+      const nomes = PRE_CADASTRO.map(p => p.nome);
+      ui.entradaNomes.value = nomes.join('');
+    }
+
     function clearLists(){ ui.listaA.innerHTML = ''; ui.listaB.innerHTML=''; ui.listaR.innerHTML=''; }
 
-    function render(){
-      clearLists();
-      PRE_CADASTRO.forEach(p => {
-        const li = document.createElement('li');
-        li.innerHTML = `<span class="name">${p.nome}</span><span class="tag">${p.time === 'R' ? 'Reserva' : 'Jogador'}</span>`;
-        if(p.time === 'A') ui.listaA.appendChild(li);
-        else if(p.time === 'B') ui.listaB.appendChild(li);
-        else ui.listaR.appendChild(li);
+    function toParticipantes(list) {
+      const seen = new Set();
+      const participantes = [];
+      list.forEach(raw => {
+        const nome = raw.trim();
+        if(!nome) return;
+        const key = nome.toLowerCase();
+        if(seen.has(key)) return; // ignora duplicados
+        seen.add(key);
+        const nota = NOTAS[key] ?? NOTA_PADRAO;
+        participantes.push({ nome, nota });
       });
+      return participantes;
+    }
+
+    function sortearBalanceado(participantes) {
+      // Embaralha levemente para dar aleatoriedade
+      participantes = participantes.slice().sort(() => Math.random() - 0.5);
+      // Ordena por nota desc para garantir equilíbrio na distribuição
+      participantes.sort((a,b) => b.nota - a.nota);
+
+      const A = []; const B = [];
+      let somaA = 0, somaB = 0;
+
+      for (const p of participantes) {
+        // regra: quem tem menor soma recebe o próximo melhor
+        // se empatar, decide aleatório para variar
+        if (somaA < somaB) {
+          A.push(p); somaA += p.nota;
+        } else if (somaB < somaA) {
+          B.push(p); somaB += p.nota;
+        } else {
+          (Math.random() < 0.5 ? A : B).push(p);
+          if (A.includes(p)) somaA += p.nota; else somaB += p.nota;
+        }
+      }
+
+      // Se número ímpar, manda o de menor nota geral para reserva
+      const todos = [...A, ...B].sort((a,b)=>a.nota-b.nota);
+      const reserva = (todos.length % 2 !== 0) ? [todos[0]] : [];
+      if (reserva.length) {
+        // remove-o do time em que ele caiu
+        const r = reserva[0];
+        const idxA = A.findIndex(x=>x.nome===r.nome);
+        if (idxA>=0) A.splice(idxA,1); else {
+          const idxB = B.findIndex(x=>x.nome===r.nome);
+          if (idxB>=0) B.splice(idxB,1);
+        }
+      }
+
+      return { A, B, reserva };
+    }
+
+    function renderTimes({A, B, reserva}){
+      clearLists();
+      const add = (ul, p) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="name">${p.nome}</span><span class="tag">Jogador</span>`;
+        ul.appendChild(li);
+      };
+      A.forEach(p=>add(ui.listaA,p));
+      B.forEach(p=>add(ui.listaB,p));
+      reserva.forEach(p=>{
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="name">${p.nome}</span><span class="tag">Reserva</span>`;
+        ui.listaR.appendChild(li);
+      });
+      // Se não houver reserva, mostra vazio amigável
+      if (reserva.length===0) {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="name muted">Sem reservas</span>`;
+        ui.listaR.appendChild(li);
+      }
     }
 
     function simulateDraw(){
       ui.btnSortear.disabled = true; ui.btnReset.disabled = true;
       ui.status.textContent = 'Sorteando…';
       ui.drawerLoading.classList.add('open');
-      // Animação de \"sorteio\" de 2.2s antes de mostrar
+
+      // Lê a lista
+      const linhas = ui.entradaNomes.value.split(/
+?
+/);
+      const participantes = toParticipantes(linhas);
+
       setTimeout(() => {
+        const resultado = sortearBalanceado(participantes);
         ui.drawerLoading.classList.remove('open');
-        ui.status.textContent = 'Resultado definido.';
+        ui.status.textContent = 'Times sorteados e equilibrados.';
         ui.times.style.display = 'grid';
-        render();
+        renderTimes(resultado);
         ui.btnReset.disabled = false;
       }, 2200);
     }
@@ -194,8 +278,8 @@
     ui.btnSortear.addEventListener('click', simulateDraw);
     ui.btnReset.addEventListener('click', reset);
 
-    // Dica: se quiser montar a lista a partir de um texto, você poderia adaptar assim:
-    // const texto = `Nome - Time\nIgor M - A\nFred - B\n...`; // parse e alimentar PRE_CADASTRO
+    // Inicializa textarea com nomes do pré-cadastro (sem Lucas por padrão)
+    seedEntrada();
   </script>
 </body>
 </html>

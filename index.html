@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>"Sorteio" de Times — Exibição Fixa</title>
+  <style>
+    :root {
+      --bg:#0f172a;         /* slate-900 */
+      --card:#111827;       /* gray-900 */
+      --muted:#94a3b8;      /* slate-400 */
+      --text:#e5e7eb;       /* gray-200 */
+      --accentA:#60a5fa;    /* blue-400 */
+      --accentB:#f87171;    /* red-400 */
+      --accentR:#facc15;    /* yellow-400 */
+      --ok:#22c55e;         /* green-500 */
+      --warn:#fb923c;       /* orange-400 */
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box }
+    html, body { height: 100% }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1000px 600px at 10% -10%, #1f2937 0, transparent 60%),
+                  radial-gradient(800px 500px at 110% 10%, #1f2937 0, transparent 60%),
+                  var(--bg);
+      color: var(--text);
+      display: grid; place-items: center; padding: 24px;
+    }
+    .app { width: min(1100px, 96vw); }
+    header { display:flex; align-items:center; gap:14px; margin-bottom:20px; }
+    .logo { width:42px; height:42px; border-radius:12px; display:grid; place-items:center; background:#0b1220; box-shadow: var(--shadow); }
+    .logo span { font-size:22px; }
+    h1 { font-size: clamp(20px, 2.6vw, 34px); margin: 0; letter-spacing:.2px }
+    .muted { color: var(--muted) }
+
+    .card { background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+            border:1px solid rgba(255,255,255,.08); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
+
+    .controls { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:20px }
+    .btn { cursor:pointer; border:none; padding:12px 18px; border-radius:12px; font-weight:600; color:#0b1220; background:#e5e7eb; }
+    .btn.primary { background: #a78bfa; color:#0b1220; }
+    .btn:disabled { opacity:.6; cursor:not-allowed }
+
+    .grid { display:grid; grid-template-columns: 1fr; gap:16px }
+    @media (min-width: 800px) { .grid { grid-template-columns: 1fr 1fr; } }
+
+    .team { border-left: 6px solid transparent }
+    .team.a { border-left-color: var(--accentA); }
+    .team.b { border-left-color: var(--accentB); }
+    .team.r { border-left-color: var(--accentR); }
+
+    .team h2 { margin:0 0 12px 0; display:flex; align-items:center; gap:10px; font-size: clamp(16px, 1.8vw, 22px) }
+    .pill { padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; letter-spacing:.4px; color:#0b1220; }
+    .pill.a { background: var(--accentA); }
+    .pill.b { background: var(--accentB); }
+    .pill.r { background: var(--accentR); }
+
+    ul { list-style:none; margin:0; padding:0; display:grid; gap:8px }
+    li { background: rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); padding:12px 14px; border-radius:12px; display:flex; align-items:center; justify-content:space-between }
+
+    .name { font-weight:600 }
+    .tag { font-size:12px; color: var(--muted) }
+
+    .drawer { overflow:hidden; transition: grid-template-rows 400ms ease; display:grid; grid-template-rows: 0fr; }
+    .drawer.open { grid-template-rows: 1fr; }
+    .drawer > div { min-height:0 }
+
+    .fakebar { height:10px; border-radius:999px; background: linear-gradient(90deg, #0b1220, #0b1220) padding-box,
+                 linear-gradient(90deg, var(--accentA), var(--accentB), var(--accentR)) border-box; border: 2px solid transparent; }
+
+    /* Sorteio animation */
+    .roll { display:flex; align-items:center; gap:8px; }
+    .dot { width:10px; height:10px; border-radius:50%; background:#e5e7eb; opacity:.6; animation: blink 1.2s infinite; }
+    .dot:nth-child(2){ animation-delay:.15s }
+    .dot:nth-child(3){ animation-delay:.3s }
+    @keyframes blink { 0%,80%,100%{ opacity:.1 } 40%{ opacity:1 } }
+
+    footer { margin-top:16px; text-align:center; color:var(--muted); font-size:12px }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logo"><span>🎲</span></div>
+      <div>
+        <h1>Simulador de Sorteio (exibição fixa)</h1>
+        <div class="muted">Mostra os times como se tivesse sorteado — mas os nomes já estão definidos.</div>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="controls">
+        <button id="btnSortear" class="btn primary">Simular sorteio</button>
+        <button id="btnReset" class="btn" disabled>Reiniciar</button>
+        <span id="status" class="muted">Pronto para sortear.</span>
+      </div>
+      <div class="drawer" id="drawerLoading">
+        <div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="roll"><strong>Sorteando</strong> <span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          </div>
+          <div class="fakebar"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid" id="times" style="display:none">
+      <div class="card team a">
+        <h2><span class="pill a">🟦 Time A</span></h2>
+        <ul id="listaA"></ul>
+      </div>
+      <div class="card team b">
+        <h2><span class="pill b">🟥 Time B</span></h2>
+        <ul id="listaB"></ul>
+      </div>
+      <div class="card team r" style="grid-column: 1 / -1">
+        <h2><span class="pill r">🟨 Reserva — entra no time que perder</span></h2>
+        <ul id="listaR"></ul>
+      </div>
+    </section>
+
+    <footer>HTML/JS/CSS puros • Sem notas/posições, somente nomes por time</footer>
+  </div>
+
+  <script>
+    // 👉 Lista pré-cadastrada (somente nomes + alocação de exibição)
+    // Obs.: nada é sorteado de verdade; apenas exibimos como se fosse o resultado.
+    const PRE_CADASTRO = [
+      { nome: "Igor M", time: "A" },
+      { nome: "Joao", time: "A" },
+      { nome: "Gabriel", time: "A" },
+      { nome: "Larissa", time: "A" },
+      { nome: "Gisele", time: "A" },
+      { nome: "Leander", time: "A" },
+
+      { nome: "Fred", time: "B" },
+      { nome: "Madson", time: "B" },
+      { nome: "Kessia", time: "B" },
+      { nome: "Dumbo", time: "B" },
+      { nome: "Julia", time: "B" },
+      { nome: "Igor Triste", time: "B" },
+
+      { nome: "Lucas", time: "R" }, // Reserva (entra no time que perder)
+    ];
+
+    const ui = {
+      btnSortear: document.getElementById('btnSortear'),
+      btnReset: document.getElementById('btnReset'),
+      status: document.getElementById('status'),
+      drawerLoading: document.getElementById('drawerLoading'),
+      times: document.getElementById('times'),
+      listaA: document.getElementById('listaA'),
+      listaB: document.getElementById('listaB'),
+      listaR: document.getElementById('listaR'),
+    };
+
+    function clearLists(){ ui.listaA.innerHTML = ''; ui.listaB.innerHTML=''; ui.listaR.innerHTML=''; }
+
+    function render(){
+      clearLists();
+      PRE_CADASTRO.forEach(p => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="name">${p.nome}</span><span class="tag">${p.time === 'R' ? 'Reserva' : 'Jogador'}</span>`;
+        if(p.time === 'A') ui.listaA.appendChild(li);
+        else if(p.time === 'B') ui.listaB.appendChild(li);
+        else ui.listaR.appendChild(li);
+      });
+    }
+
+    function simulateDraw(){
+      ui.btnSortear.disabled = true; ui.btnReset.disabled = true;
+      ui.status.textContent = 'Sorteando…';
+      ui.drawerLoading.classList.add('open');
+      // Animação de \"sorteio\" de 2.2s antes de mostrar
+      setTimeout(() => {
+        ui.drawerLoading.classList.remove('open');
+        ui.status.textContent = 'Resultado definido.';
+        ui.times.style.display = 'grid';
+        render();
+        ui.btnReset.disabled = false;
+      }, 2200);
+    }
+
+    function reset(){
+      ui.times.style.display = 'none';
+      clearLists();
+      ui.status.textContent = 'Pronto para sortear.';
+      ui.btnSortear.disabled = false;
+      ui.btnReset.disabled = true;
+    }
+
+    ui.btnSortear.addEventListener('click', simulateDraw);
+    ui.btnReset.addEventListener('click', reset);
+
+    // Dica: se quiser montar a lista a partir de um texto, você poderia adaptar assim:
+    // const texto = `Nome - Time\nIgor M - A\nFred - B\n...`; // parse e alimentar PRE_CADASTRO
+  </script>
+</body>
+</html>
